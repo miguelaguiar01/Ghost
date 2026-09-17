@@ -128,7 +128,12 @@ The entry pipe returns daily counts in the requested timezone (UTC by default).
 Optional `date_from` and `date_to` pipe parameters are inclusive/exclusive calendar
 bounds; Core converts the inclusive API end date to the next calendar day before
 calling the pipe. Omit both for the full history. Core derives the total from that
-same result. The status pipe combines each run's latest step categories with a
+same result. Status counts and run lists accept the same entry-date bounds,
+including member-search queries. They select runs by `created_at` before reading
+steps, then classify the full latest step history regardless of when the steps
+ran. The three cards describe current outcomes for that entry cohort, not
+outcomes that occurred during the selected period. Missing/unknown history stays
+an internal diagnostic rather than adding a new filter category. The status pipe combines each run's latest step categories with a
 bit mask: pending=1, finished=2, known exit=4, unknown=8. Any pending bit wins;
 finished-only is 2; known exits with or without finished steps are 6 or 4. Missing
 and unknown history is the selected run count minus the three classified counts.
