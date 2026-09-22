@@ -29,6 +29,7 @@ import {
   getDefaultNewsletterIdsForNewMember,
   getEmailErrorMessage,
   getMemberEditableSlice,
+  getUpdatesAndAnnouncementsToSave,
   isDraftInSyncWithServer,
   isValidMemberEmail,
   normalizeDraftForComparison,
@@ -46,6 +47,7 @@ import {
 import { toast } from 'sonner';
 import { useBrowseNewsletters } from '@tryghost/admin-x-framework/api/newsletters';
 import { useBrowseTiers } from '@tryghost/admin-x-framework/api/tiers';
+import { useFeatureFlag } from '@tryghost/admin-x-framework/hooks';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import type { MemberEditableFields } from './member-detail-edit';
 
@@ -79,6 +81,11 @@ const MemberDetailPage: React.FC<MemberDetailPageProps> = ({
     defaultErrorHandler: false,
   });
   const member = data?.members?.[0];
+  const automationsEnabled = useFeatureFlag('automations');
+  const preserveUpdatesAndAnnouncements =
+    automationsEnabled &&
+    newslettersUiEnabled &&
+    (isCreating || typeof member?.enable_updates_and_announcements !== 'boolean');
   // 4xx from the members endpoint on a real id means "gone" (deleted mid-flow
   // is the realistic case). 5xx/network is a different story — we don't want
   // to lie about that with a "not found" message.
@@ -177,9 +184,12 @@ const MemberDetailPage: React.FC<MemberDetailPageProps> = ({
     const seeded = {
       ...(lastServerSliceRef.current ?? getMemberEditableSlice({})),
       newsletters: [...defaults].sort(),
+      updatesAndAnnouncements: true,
     };
     lastServerSliceRef.current = seeded;
-    setDraft((prev) => (prev ? { ...prev, newsletters: [...defaults].sort() } : prev));
+    setDraft((prev) =>
+      prev ? { ...prev, newsletters: [...defaults].sort(), updatesAndAnnouncements: true } : prev,
+    );
   }, [isCreating, newslettersData]);
 
   // In create mode the baseline is whatever the seeding effect has decided
@@ -272,6 +282,11 @@ const MemberDetailPage: React.FC<MemberDetailPageProps> = ({
           newsletters: newsletterDefaultsSeededRef.current
             ? draft.newsletters.map((id) => ({ id }))
             : undefined,
+          enable_updates_and_announcements: getUpdatesAndAnnouncementsToSave(
+            draft,
+            lastServerSliceRef.current ?? getMemberEditableSlice({}),
+            preserveUpdatesAndAnnouncements,
+          ),
         },
         {
           onSuccess: (response) => {
@@ -301,7 +316,12 @@ const MemberDetailPage: React.FC<MemberDetailPageProps> = ({
       return;
     }
     editMutation.mutate(
-      buildMemberFieldEditPayload(member.id, draft, getMemberEditableSlice(member)),
+      buildMemberFieldEditPayload(
+        member.id,
+        draft,
+        getMemberEditableSlice(member),
+        preserveUpdatesAndAnnouncements,
+      ),
       {
         onSuccess: (response) => {
           const saved = response.members?.[0];
@@ -485,7 +505,8 @@ const MemberDetailPage: React.FC<MemberDetailPageProps> = ({
                       emailSuppression={member?.email_suppression}
                       memberId={member?.id}
                       subscribedIds={draft.newsletters}
-                      onChange={(nextIds) => onFieldChange({ newsletters: nextIds })}
+                      updatesAndAnnouncements={draft.updatesAndAnnouncements}
+                      onChange={onFieldChange}
                     />
                   )}
 

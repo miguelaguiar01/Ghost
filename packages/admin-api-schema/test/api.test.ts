@@ -213,6 +213,18 @@ describe('Exposes a correct API', function () {
       assert.deepEqual(add.members[0]?.metafields, { 'favourite-topic': 'Ghosts' });
     });
 
+    it('Keeps enable_updates_and_announcements on a member body instead of stripping it', async function () {
+      const edit = { members: [{ enable_updates_and_announcements: false }] };
+      await apiSchema.validate({ data: edit, schema: 'members-edit', definition: 'members' });
+      assert.equal(edit.members[0]?.enable_updates_and_announcements, false);
+
+      const add = {
+        members: [{ email: 'test@example.com', enable_updates_and_announcements: null }],
+      };
+      await apiSchema.validate({ data: add, schema: 'members-add', definition: 'members' });
+      assert.equal(add.members[0]?.enable_updates_and_announcements, null);
+    });
+
     it('Judges no part of metafields, whatever shape it arrives in', async function () {
       // The declaration exists to stop the key being stripped, not to validate
       // it: only a site's field definitions know what a given key accepts, and

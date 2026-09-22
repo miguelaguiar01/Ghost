@@ -2704,6 +2704,27 @@ describe('Members API', function () {
       });
   });
 
+  it('Can set the updates & announcements preference on create and edit', async function () {
+    const { body: createBody } = await agent
+      .post('/members/')
+      .body({
+        members: [
+          { email: 'updates-preference@test.com', enable_updates_and_announcements: false },
+        ],
+      })
+      .expectStatus(201);
+    const created = createBody.members[0];
+    assert.equal(created.enable_updates_and_announcements, false);
+
+    const { body: editBody } = await agent
+      .put(`/members/${created.id}/`)
+      .body({ members: [{ enable_updates_and_announcements: true }] })
+      .expectStatus(200);
+    assert.equal(editBody.members[0].enable_updates_and_announcements, true);
+
+    await agent.delete(`/members/${created.id}/`).expectStatus(204);
+  });
+
   it('Can subscribe to a newsletter', async function () {
     const clock = mockSystemTime(Date.now());
     const memberToChange = {

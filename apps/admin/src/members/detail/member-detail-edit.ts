@@ -33,6 +33,8 @@ export interface MemberEditableFields {
   labels: MemberEditableLabel[];
   // Subscribed-newsletter ids, sorted, so order changes never look dirty.
   newsletters: string[];
+  // Snapshot of the effective preference; newsletter edits must not change it.
+  updatesAndAnnouncements: boolean;
   // Custom field values are deliberately NOT part of this slice: they save
   // individually through their own per-field editor (one field, one Save),
   // never through the page's draft/Save flow.
@@ -46,6 +48,7 @@ interface MemberFieldSource {
   note?: string | null;
   labels?: Array<{ name: string; slug: string }> | null;
   newsletters?: Array<{ id: string }> | null;
+  enable_updates_and_announcements?: boolean | null;
 }
 
 // Soft limit shown as a countdown (Ember imposes no hard maxlength; the DB column
@@ -69,6 +72,9 @@ export function getMemberEditableSlice(member: MemberFieldSource): MemberEditabl
       .map((label) => ({ name: label.name, slug: label.slug }))
       .sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0)),
     newsletters: (member.newsletters ?? []).map((nl) => nl.id).sort(),
+    // Match the null fallback in automations/poll.ts.
+    updatesAndAnnouncements:
+      member.enable_updates_and_announcements ?? (member.newsletters?.length ?? 0) > 0,
   };
 }
 
@@ -252,6 +258,24 @@ export function getNoteCharactersLeft(note: string): number {
 }
 
 /**
+ * Preserve visible, unset preferences on newsletter edits, as Portal does.
+ * Otherwise, only save an explicitly changed toggle.
+ */
+export function getUpdatesAndAnnouncementsToSave(
+  draft: MemberEditableFields,
+  baseline: MemberEditableFields,
+  preserveOnNewsletterChange: boolean,
+): boolean | undefined {
+  if (
+    draft.updatesAndAnnouncements !== baseline.updatesAndAnnouncements ||
+    (preserveOnNewsletterChange && !dequal(draft.newsletters, baseline.newsletters))
+  ) {
+    return draft.updatesAndAnnouncements;
+  }
+  return undefined;
+}
+
+/**
  * Build the `useEditMember` payload for the field edits in this slice. Labels are
  * sent as {name, slug} (server matches case-insensitively by name). Newsletters
  * are sent as {id}[] ONLY when the user changed them, because the server replaces
@@ -263,6 +287,7 @@ export function buildMemberFieldEditPayload(
   id: string,
   draft: MemberEditableFields,
   serverBaseline: MemberEditableFields,
+  preserveUpdatesAndAnnouncements = false,
 ): EditMemberData {
   const normalized = normalizeDraftForComparison(draft);
   const payload: EditMemberData = {
@@ -274,6 +299,14 @@ export function buildMemberFieldEditPayload(
   };
   if (!dequal(normalized.newsletters, serverBaseline.newsletters)) {
     payload.newsletters = normalized.newsletters.map((nlId) => ({ id: nlId }));
+  }
+  const updatesAndAnnouncements = getUpdatesAndAnnouncementsToSave(
+    normalized,
+    serverBaseline,
+    preserveUpdatesAndAnnouncements,
+  );
+  if (updatesAndAnnouncements !== undefined) {
+    payload.enable_updates_and_announcements = updatesAndAnnouncements;
   }
   return payload;
 }
@@ -404,6 +437,7 @@ export function normalizeDraftForComparison(draft: MemberEditableFields): Member
     note: draft.note,
     labels: draft.labels,
     newsletters: draft.newsletters,
+    updatesAndAnnouncements: draft.updatesAndAnnouncements,
   };
 }
 

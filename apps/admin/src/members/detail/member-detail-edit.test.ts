@@ -9,6 +9,7 @@ import {
   getMemberEditableSlice,
   getMemberSuppressionInfo,
   getNoteCharactersLeft,
+  getUpdatesAndAnnouncementsToSave,
   isDraftInSyncWithServer,
   isValidMemberEmail,
   parseCustomFieldServerErrors,
@@ -27,6 +28,7 @@ describe('getMemberEditableSlice', () => {
       note: '',
       labels: [],
       newsletters: [],
+      updatesAndAnnouncements: false,
     });
     expect(
       getMemberEditableSlice({
@@ -35,14 +37,29 @@ describe('getMemberEditableSlice', () => {
         note: null,
         labels: null,
         newsletters: null,
+        enable_updates_and_announcements: null,
       }),
-    ).toEqual({ name: '', email: '', note: '', labels: [], newsletters: [] });
+    ).toEqual({
+      name: '',
+      email: '',
+      note: '',
+      labels: [],
+      newsletters: [],
+      updatesAndAnnouncements: false,
+    });
   });
 
   it('trims name and email (matching Ember blur-trim) but preserves note whitespace', () => {
     expect(
       getMemberEditableSlice({ name: '  Ada  ', email: ' ada@x.co ', note: '  hi  ' }),
-    ).toEqual({ name: 'Ada', email: 'ada@x.co', note: '  hi  ', labels: [], newsletters: [] });
+    ).toEqual({
+      name: 'Ada',
+      email: 'ada@x.co',
+      note: '  hi  ',
+      labels: [],
+      newsletters: [],
+      updatesAndAnnouncements: false,
+    });
   });
 
   it('passes through already-clean fields', () => {
@@ -52,7 +69,32 @@ describe('getMemberEditableSlice', () => {
       note: 'VIP',
       labels: [],
       newsletters: [],
+      updatesAndAnnouncements: false,
     });
+  });
+
+  it('keeps an explicit updates & announcements preference as-is', () => {
+    expect(
+      getMemberEditableSlice({
+        enable_updates_and_announcements: false,
+        newsletters: [{ id: 'a' }],
+      }).updatesAndAnnouncements,
+    ).toBe(false);
+    expect(
+      getMemberEditableSlice({ enable_updates_and_announcements: true, newsletters: [] })
+        .updatesAndAnnouncements,
+    ).toBe(true);
+  });
+
+  it('derives updates & announcements from newsletter subscriptions when there is no explicit preference', () => {
+    expect(
+      getMemberEditableSlice({ enable_updates_and_announcements: null, newsletters: [{ id: 'a' }] })
+        .updatesAndAnnouncements,
+    ).toBe(true);
+    expect(
+      getMemberEditableSlice({ enable_updates_and_announcements: null, newsletters: [] })
+        .updatesAndAnnouncements,
+    ).toBe(false);
   });
 
   it('normalizes labels to {name, slug} sorted by slug', () => {
@@ -84,7 +126,57 @@ describe('buildMemberFieldEditPayload', () => {
     note: '',
     labels: [],
     newsletters: ['nl_a', 'nl_b'],
+    updatesAndAnnouncements: true,
   };
+
+  it('leaves an unset updates preference alone when only unrelated fields change', () => {
+    const payload = buildMemberFieldEditPayload(
+      'mem_1',
+      { ...baseline, name: 'Ada B' },
+      baseline,
+      true,
+    );
+    expect(payload.enable_updates_and_announcements).toBeUndefined();
+  });
+
+  it.each([false, true])(
+    'preserves the displayed updates preference when newsletter subscription changes from %s',
+    (initiallySubscribed) => {
+      const server = getMemberEditableSlice({
+        email: 'ada@x.co',
+        newsletters: initiallySubscribed ? [{ id: 'nl_a' }] : [],
+        enable_updates_and_announcements: null,
+      });
+      const draft = { ...server, newsletters: initiallySubscribed ? [] : ['nl_a'] };
+      const payload = buildMemberFieldEditPayload('mem_1', draft, server, true);
+
+      expect(payload.enable_updates_and_announcements).toBe(draft.updatesAndAnnouncements);
+      const saved = getMemberEditableSlice({
+        newsletters: payload.newsletters,
+        enable_updates_and_announcements: payload.enable_updates_and_announcements ?? null,
+      });
+      expect(saved.updatesAndAnnouncements).toBe(draft.updatesAndAnnouncements);
+    },
+  );
+
+  it('keeps the newsletter fallback when the updates control is hidden', () => {
+    const payload = buildMemberFieldEditPayload(
+      'mem_1',
+      { ...baseline, newsletters: [] },
+      baseline,
+      false,
+    );
+    expect(payload.enable_updates_and_announcements).toBeUndefined();
+  });
+
+  it('sends updates & announcements when the user has toggled it', () => {
+    const payload = buildMemberFieldEditPayload(
+      'mem_1',
+      { ...baseline, updatesAndAnnouncements: false },
+      baseline,
+    );
+    expect(payload.enable_updates_and_announcements).toBe(false);
+  });
 
   it('omits newsletters when the user has not changed them', () => {
     // Sending `[]` would unsubscribe the member from every newsletter, so an
@@ -115,6 +207,55 @@ describe('buildMemberFieldEditPayload', () => {
   it('never carries metafields — those save individually, not through the page', () => {
     const payload = buildMemberFieldEditPayload('mem_1', { ...baseline, name: 'Ada B' }, baseline);
     expect(payload.metafields).toBeUndefined();
+  });
+});
+
+describe('getUpdatesAndAnnouncementsToSave for new members', () => {
+  it.each([false, true])(
+    'preserves the displayed preference when changing the default newsletter selection from %s',
+    (hasDefaultNewsletter) => {
+      const baseline = getMemberEditableSlice({
+        newsletters: hasDefaultNewsletter ? [{ id: 'nl_a' }] : [],
+      });
+      const draft = {
+        ...baseline,
+        email: 'new@x.co',
+        newsletters: hasDefaultNewsletter ? [] : ['nl_a'],
+      };
+      const preference = getUpdatesAndAnnouncementsToSave(draft, baseline, true);
+
+      expect(preference).toBe(draft.updatesAndAnnouncements);
+      const created = getMemberEditableSlice({
+        newsletters: draft.newsletters.map((id) => ({ id })),
+        enable_updates_and_announcements: preference ?? null,
+      });
+      expect(created.updatesAndAnnouncements).toBe(draft.updatesAndAnnouncements);
+    },
+  );
+
+  it('leaves the preference unset when accepting the default email preferences', () => {
+    const baseline = getMemberEditableSlice({ newsletters: [{ id: 'nl_a' }] });
+    expect(
+      getUpdatesAndAnnouncementsToSave({ ...baseline, email: 'new@x.co' }, baseline, true),
+    ).toBeUndefined();
+  });
+
+  it('saves an explicit toggle change even when newsletters are unchanged', () => {
+    const baseline = getMemberEditableSlice({ newsletters: [{ id: 'nl_a' }] });
+    expect(
+      getUpdatesAndAnnouncementsToSave(
+        { ...baseline, updatesAndAnnouncements: false },
+        baseline,
+        true,
+      ),
+    ).toBe(false);
+  });
+
+  it('leaves the preference unset when the updates control is hidden', () => {
+    const baseline = getMemberEditableSlice({ newsletters: [{ id: 'nl_a' }] });
+    expect(
+      getUpdatesAndAnnouncementsToSave({ ...baseline, newsletters: [] }, baseline, false),
+    ).toBeUndefined();
   });
 });
 
@@ -406,6 +547,7 @@ describe('isDraftInSyncWithServer', () => {
     note: 'VIP',
     labels: [{ name: 'Beta', slug: 'beta' }],
     newsletters: ['nl_a'],
+    updatesAndAnnouncements: true,
   };
 
   it('is in sync when there is no draft yet', () => {
@@ -432,6 +574,12 @@ describe('isDraftInSyncWithServer', () => {
 
   it('is out of sync when the user has toggled a newsletter', () => {
     expect(isDraftInSyncWithServer({ ...server, newsletters: [] }, server)).toBe(false);
+  });
+
+  it('is out of sync when the user has toggled updates & announcements', () => {
+    expect(isDraftInSyncWithServer({ ...server, updatesAndAnnouncements: false }, server)).toBe(
+      false,
+    );
   });
 });
 
