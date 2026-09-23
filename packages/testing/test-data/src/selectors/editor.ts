@@ -190,3 +190,16 @@ export const codeInjectionHeadLabel = 'Post header';
 export const codeInjectionFootLabel = 'Post footer';
 export const codeInjectionPageHeadLabel = 'Page header';
 export const codeInjectionPageFootLabel = 'Page footer';
+export const settingsCodeInjectionRow = 'Code injection';
+export const settingsCodeInjectionBackButton = 'Close code injection panel';
+export const settingsMetaDataRow = 'Meta data';
+export const settingsMetaDataBackButton = 'Close meta data panel';
+export const settingsXCardRow = 'X card';
+export const settingsXCardBackButton = 'Close X card panel';
+export const settingsFacebookCardRow = 'Facebook card';
+export const settingsFacebookCardBackButton = 'Close Facebook card panel';
+export const settingsKeyboardShortcutsRow = 'Keyboard shortcuts';
+export const settingsKeyboardShortcutsBackButton = 'Close keyboard shortcuts panel';
+
+// text fragments
+export const settingsTagsCreateText = 'Create';
