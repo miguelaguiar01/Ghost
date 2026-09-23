@@ -37,8 +37,9 @@ inside another editor surface needs in order to paint above it.
    that opens a pane rather than rendering fields in the list uses
    `SettingsSubview`.
 3. Add an entry for the id to the `sections` map in
-   `settings/post-settings-sidebar.tsx`. The map is also where the section's
-   role gate goes: a role that cannot write the section gets no entry.
+   `settings/post-settings-sidebar.tsx`, and give it a cell in every row of
+   `roles.ts`, false for each role that cannot write the section. Type checking
+   fails until every row has one.
 4. If the section writes a post field the session does not carry yet, add its
    key to `SETTINGS_FIELD_KEYS` in `session/settings-fields.ts`, together with
    the identity it is written as and any rule the save-time validator should

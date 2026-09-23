@@ -3,13 +3,14 @@ import { Button } from '@tryghost/shade/components';
 import { Inline, Text } from '@tryghost/shade/primitives';
 import { getSettingValue } from '@tryghost/admin-x-framework/api/settings';
 import { useFeatureFlag } from '@tryghost/admin-x-framework/hooks';
-import { isContributorUser, type User } from '@tryghost/admin-x-framework/api/users';
+import type { User } from '@tryghost/admin-x-framework/api/users';
 import {
   editorHeaderActions,
   editorPublishInputsError,
 } from '@tryghost/test-data/selectors/editor';
 import type { PostType } from './card-config';
 import { EDITOR_REQUEST_OPTIONS } from './request-options';
+import { editorPermissions } from './roles';
 import { PostPreviewModal } from './preview/post-preview-modal';
 import { postPreviewUrl } from './preview/preview-url';
 import { PublishFlowModal } from './publish/publish-flow-modal';
@@ -78,13 +79,14 @@ export function EditorHeaderActions({
     displayName: postType,
     lexical: session.getLiveLexical(),
   });
+  const headerActions = editorPermissions(currentUser).headerActions;
   // Core 301-redirects a published or sent post away from /p/:uuid/ and drops the
   // audience query, so Ember offers a preview only while the post is a draft.
-  const isDraft = post.status === 'draft';
+  const canPreview = post.status === 'draft' && headerActions.includes('preview');
 
   usePreviewShortcut(
     useCallback(() => setPreviewOpen((open) => !open), []),
-    isDraft && persistedId !== null,
+    canPreview && persistedId !== null,
   );
 
   // Ember saves a dirty draft before previewing it and leaves every other post as it is.
@@ -96,7 +98,6 @@ export function EditorHeaderActions({
   }, [session]);
 
   const isSaving = session.state.kind === 'saving' || session.state.kind === 'pending-coalesced';
-  const isContributor = !!currentUser && isContributorUser(currentUser);
 
   // A post the server has never seen can be neither published nor previewed.
   if (!persistedId) {
@@ -105,18 +106,14 @@ export function EditorHeaderActions({
 
   return (
     <Inline data-testid={editorHeaderActions} gap="sm">
-      {isDraft ? (
+      {canPreview ? (
         <Button size="sm" variant="outline" onClick={openPreview}>
           Preview
         </Button>
       ) : null}
-      {isContributor ? (
-        <Button disabled={isSaving} size="sm" onClick={session.dispatchExplicit}>
-          Save
-        </Button>
-      ) : (
+      {headerActions.includes('publish') ? (
         <PublishActions
-          isDraft={isDraft}
+          isDraft={post.status === 'draft'}
           isSaving={isSaving}
           openFlow={openFlow}
           post={post}
@@ -126,8 +123,12 @@ export function EditorHeaderActions({
           onOpenFlow={setOpenFlow}
           onPreview={openPreview}
         />
-      )}
-      {isDraft ? (
+      ) : headerActions.includes('save') ? (
+        <Button disabled={isSaving} size="sm" onClick={session.dispatchExplicit}>
+          Save
+        </Button>
+      ) : null}
+      {canPreview ? (
         <PostPreviewModal
           isPost={postType === 'post'}
           newsletterSlug={post.newsletter ?? undefined}

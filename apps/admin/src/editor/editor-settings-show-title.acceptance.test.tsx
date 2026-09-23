@@ -289,6 +289,22 @@ describe('Post settings show title and feature image', () => {
     await expect(editorScreen.settingsShowTitleWarning()).toHaveCount(0);
   });
 
+  it('warns an Author about the theme too', async () => {
+    fakeSavablePage({ authors: [{ id: '1' }], show_title_and_feature_image: false });
+    const me = currentUserResponse();
+    me.users[0].roles = [staffRole({ name: 'Author' })];
+    await renderAdminApp(`/editor/page/${PAGE_ID}`, {
+      ...FLAG_ON,
+      boot: {
+        browseMe: { response: me },
+        browseActiveTheme: { response: activeThemeResponse({ errors: [PAGE_BUILDER_PROBLEM] }) },
+      },
+    });
+    await openSettings();
+
+    await expect.element(editorScreen.settingsShowTitleWarning()).toBeVisible();
+  });
+
   it('warns on a theme report that carries the gap as a warning', async () => {
     fakeSavablePage({ show_title_and_feature_image: false });
     await renderAdminApp(

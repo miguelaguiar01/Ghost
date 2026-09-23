@@ -5,7 +5,7 @@ import {
   getSettingValue,
 } from '@tryghost/admin-x-framework/api/settings';
 import { type SiteData, getHomepageUrl } from '@tryghost/admin-x-framework/api/site';
-import { isContributorUser } from '@tryghost/admin-x-framework/api/users';
+import { type EditorUser, editorPermissions } from './roles';
 import type { AutocompleteLink, LinkSearchGroup } from './link-suggestions';
 
 export type PostType = 'post' | 'page';
@@ -38,7 +38,7 @@ export interface PostCardConfigSources {
   settings: Setting[];
   config: Config;
   site: SiteData;
-  currentUser: Parameters<typeof isContributorUser>[0];
+  currentUser: EditorUser;
   unsplashHeaders: Record<string, string | boolean>;
   pinturaConfig: { jsUrl: string; cssUrl: string } | null;
   post: CardConfigPost | undefined;
@@ -120,7 +120,7 @@ export function buildPostCardConfig(
     fetchAutocompleteLinks: ports.fetchAutocompleteLinks,
     fetchEmbed: ports.fetchEmbed,
     fetchLabels: ports.fetchLabels,
-    renderLabels: !isContributorUser(currentUser),
+    renderLabels: editorPermissions(currentUser).cardLabels,
     feature: {
       transistor: getSettingValue<boolean>(settings, 'transistor') === true,
       paywallImprovements: config.labs?.paywallImprovements === true,

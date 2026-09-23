@@ -32,9 +32,10 @@ message rather than sent and answered with a server error.
 
 `SETTINGS_SECTION_ORDER` in `sections.ts` is the full running order, and the
 sidebar frame renders one entry per id in that order. The frame's own `sections`
-map is where a section is built and where its role gate lives: every role that
-can open the editor can open the sidebar, and a section the writer's role cannot
-write is the entry the map leaves out. The prose below follows that order.
+map is where a section is built. Every role that can open the editor can open
+the sidebar, and the editor's role rules live in one table in `roles.ts`, keyed
+by role: a section the writer's row marks false renders nothing. The prose
+below follows that order.
 
 ## Subviews
 

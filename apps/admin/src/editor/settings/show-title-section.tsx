@@ -2,12 +2,13 @@ import { useId } from 'react';
 import { Label, Switch } from '@tryghost/shade/components';
 import { Inline, Text } from '@tryghost/shade/primitives';
 import { missesPageBuilderAttribute, useActiveTheme } from '@tryghost/admin-x-framework/api/themes';
-import { isContributorUser, type User } from '@tryghost/admin-x-framework/api/users';
+import type { User } from '@tryghost/admin-x-framework/api/users';
 import {
   settingsShowTitleToggle,
   settingsShowTitleWarning,
 } from '@tryghost/test-data/selectors/editor';
 import { EDITOR_REQUEST_OPTIONS } from '@/editor/request-options';
+import { editorPermissions } from '@/editor/roles';
 import type { EditorSettingsPort } from './editor-settings-port';
 import { SettingsSection } from './settings-section';
 
@@ -27,10 +28,9 @@ export interface ShowTitleSectionProps {
 export function ShowTitleSection({ session, currentUser }: ShowTitleSectionProps) {
   const inputId = useId();
   const showTitleAndFeatureImage = session.settings.show_title_and_feature_image ?? true;
-  // Reading the active theme needs a permission Contributors lack, and the
-  // warning only matters once the choice is off.
+  // The warning only matters once the choice is off.
   const { data: themeData } = useActiveTheme({
-    enabled: !(currentUser && isContributorUser(currentUser)) && !showTitleAndFeatureImage,
+    enabled: editorPermissions(currentUser).showTitleThemeWarning && !showTitleAndFeatureImage,
     defaultErrorHandler: false,
     requestOptions: EDITOR_REQUEST_OPTIONS,
   });

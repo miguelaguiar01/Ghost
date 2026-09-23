@@ -11,14 +11,7 @@ import { useFeatureFlag } from '@tryghost/admin-x-framework/hooks';
 import { useCurrentUser } from '@tryghost/admin-x-framework/api/current-user';
 import { useEditPage, useEditorPage } from '@tryghost/admin-x-framework/api/pages';
 import { useEditPost, useEditorPost } from '@tryghost/admin-x-framework/api/posts';
-import {
-  type User,
-  isAdminUser,
-  isAuthorOrContributor,
-  isContributorUser,
-  isEditorUser,
-  isOwnerUser,
-} from '@tryghost/admin-x-framework/api/users';
+import type { User } from '@tryghost/admin-x-framework/api/users';
 import {
   editorLeaveDialog,
   editorLoadError,
@@ -38,6 +31,7 @@ import { SessionBanners } from './session/session-banners';
 import { PostSettingsSidebar } from './settings/post-settings-sidebar';
 import { useFeatureImageBinding } from './session/feature-image-binding';
 import { EDITOR_REQUEST_OPTIONS } from './request-options';
+import { editorPermissions } from './roles';
 import { useEditorLeaveGuard } from './session/use-leave-guard';
 import { useEditorSession, useEditorSessionKey } from './session/use-editor-session';
 import { usePostCardConfig } from './use-post-card-config';
@@ -235,11 +229,8 @@ function EditorSurface({
     requestOptions: EDITOR_REQUEST_OPTIONS,
   });
 
-  const canManageSnippets =
-    !!currentUser &&
-    (isOwnerUser(currentUser) || isAdminUser(currentUser) || isEditorUser(currentUser));
   const { snippets, createSnippet, deleteSnippet, snippetDialog } = usePostSnippets({
-    canManage: canManageSnippets,
+    canManage: editorPermissions(currentUser).manageSnippets,
   });
 
   const [cardConfigPost] = useState<CardConfigPostSource>(() => ({
@@ -276,13 +267,14 @@ function EditorSurface({
 
 // The API returns posts the user cannot edit, so authorship is checked here
 function shouldReturnToList(user: User, record: EditorRecord): boolean {
+  const { returnToList } = editorPermissions(user);
   const isAuthored = record.authors?.some((author) => author.id === user.id) ?? false;
 
-  if (isAuthorOrContributor(user) && !isAuthored) {
+  if (returnToList.unauthored && !isAuthored) {
     return true;
   }
 
-  return isContributorUser(user) && record.status !== 'draft';
+  return returnToList.nonDraft && record.status !== 'draft';
 }
 
 interface ConversionState {

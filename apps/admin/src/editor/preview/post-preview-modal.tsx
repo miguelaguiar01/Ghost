@@ -28,15 +28,10 @@ import { useBrowseNewsletters } from '@tryghost/admin-x-framework/api/newsletter
 import { useHandleError } from '@tryghost/admin-x-framework/hooks';
 import { useBrowseTiers } from '@tryghost/admin-x-framework/api/tiers';
 import { useCurrentUser } from '@tryghost/admin-x-framework/api/current-user';
-import {
-  isAdminUser,
-  isContributorUser,
-  isEditorUser,
-  isOwnerUser,
-} from '@tryghost/admin-x-framework/api/users';
 
 import { NEWSLETTERS_SEARCH_PARAMS, PAID_TIERS_SEARCH_PARAMS } from '@/editor/browse-params';
 import { EDITOR_REQUEST_OPTIONS } from '@/editor/request-options';
+import { editorPermissions } from '@/editor/roles';
 import { postPreviewModal, postPreviewSaveFailed } from '@tryghost/test-data/selectors/editor';
 import { useEditorSettings } from '@/editor/use-editor-settings';
 import { FullscreenDialog } from '@/editor/fullscreen-dialog';
@@ -99,17 +94,12 @@ export function PostPreviewModal({
   const { data: settingsData } = useEditorSettings();
   const paidMembersEnabled = usePaidMembersEnabled({ requestOptions: EDITOR_REQUEST_OPTIONS });
   const newslettersEnabled = useNewslettersEnabled({ requestOptions: EDITOR_REQUEST_OPTIONS });
+  const permissions = editorPermissions(currentUser);
   const membersEnabled =
     getSettingValue<boolean>(settingsData?.settings ?? [], 'members_enabled') === true;
   const emailAvailable =
-    isPost &&
-    membersEnabled &&
-    Boolean(newslettersEnabled) &&
-    !!currentUser &&
-    !isContributorUser(currentUser);
-  const testEmailAvailable =
-    !!currentUser &&
-    (isOwnerUser(currentUser) || isAdminUser(currentUser) || isEditorUser(currentUser));
+    isPost && membersEnabled && Boolean(newslettersEnabled) && permissions.previewEmail;
+  const testEmailAvailable = permissions.sendTestEmail;
 
   const { data: tiersData } = useBrowseTiers({
     searchParams: PAID_TIERS_SEARCH_PARAMS,
